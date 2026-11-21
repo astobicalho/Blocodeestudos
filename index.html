@@ -3,32 +3,56 @@
 <head>
 
 <meta name="theme-color" content="#1e3a5f" />
+<meta name="theme-color" content="#1e3a5f" />
 <script>
   (function () {
-    const iconeSvg = encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" rx="36" fill="#1e3a5f"/><text x="96" y="122" font-size="92" text-anchor="middle" fill="#fde68a">📖</text></svg>'
-    );
+    function criarIconePng(tamanho) {
+      const canvas = document.createElement("canvas");
+      canvas.width = tamanho;
+      canvas.height = tamanho;
+      const ctx = canvas.getContext("2d");
+
+      ctx.fillStyle = "#1e3a5f";
+      ctx.fillRect(0, 0, tamanho, tamanho);
+
+      ctx.strokeStyle = "#c59b27";
+      ctx.lineWidth = Math.max(4, Math.round(tamanho * 0.04));
+      ctx.strokeRect(
+        ctx.lineWidth / 2,
+        ctx.lineWidth / 2,
+        tamanho - ctx.lineWidth,
+        tamanho - ctx.lineWidth
+      );
+
+      ctx.fillStyle = "#fde68a";
+      ctx.font = `bold ${Math.round(tamanho * 0.46)}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("📖", tamanho / 2, tamanho * 0.53);
+
+      return canvas.toDataURL("image/png");
+    }
+
+    const icone192 = criarIconePng(192);
+    const icone512 = criarIconePng(512);
+
     const manifestObj = {
       name: "Bloco de Estudos Bíblicos",
       short_name: "Bloco de Estudos",
-      start_url: "./",
-      scope: "./",
+      start_url: "https://studobliblico.netlify.app/",
+      scope: "https://studobliblico.netlify.app/",
       display: "standalone",
       background_color: "#f4f6f9",
       theme_color: "#1e3a5f",
       icons: [
-        {
-          src: `data:image/svg+xml,${iconeSvg}`,
-          sizes: "192x192",
-          type: "image/svg+xml",
-          purpose: "any"
-        }
+        { src: icone192, sizes: "192x192", type: "image/png", purpose: "any" },
+        { src: icone512, sizes: "512x512", type: "image/png", purpose: "any" }
       ]
     };
-    const blob = new Blob([JSON.stringify(manifestObj)], { type: "application/manifest+json" });
+
     const link = document.createElement("link");
     link.rel = "manifest";
-    link.href = URL.createObjectURL(blob);
+    link.href = "data:application/manifest+json;charset=utf-8," + encodeURIComponent(JSON.stringify(manifestObj));
     document.head.appendChild(link);
   })();
 </script>
