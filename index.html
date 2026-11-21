@@ -63,6 +63,8 @@
       transition: background 0.2s;
     }
     .btn:hover { background: #132742; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-sm { padding: 6px 12px; font-size: 0.82rem; }
     .btn-accent { background: var(--accent); color: #1a1a1a; }
     .btn-accent:hover { background: #b0871f; }
     .btn-danger { background: var(--danger); color: white; }
@@ -117,6 +119,13 @@
       font-size: 0.95rem;
     }
     .form-group textarea { resize: vertical; height: 80px; }
+
+    .erro-login {
+      color: var(--danger);
+      font-size: 0.85rem;
+      margin-bottom: 10px;
+      display: none;
+    }
 
     /* Cards */
     .exegesis-card {
@@ -211,7 +220,59 @@
       padding: 16px;
       border-radius: 8px;
     }
-    .reflection-box strong { color: #92400e; display: block; margin-bottom: 6px; }
+    .reflection-box strong.reflection-title {
+      color: #92400e;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    /* Resposta do leitor logo abaixo da pergunta */
+    .reader-answer-area {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px dashed #fcd34d;
+    }
+    .reader-answer-saved {
+      background: #ffffff;
+      border: 1px solid #fde68a;
+      border-left: 4px solid var(--primary);
+      padding: 12px 14px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      white-space: pre-wrap;
+      color: var(--text-main);
+      font-size: 0.93rem;
+    }
+    .reader-answer-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--primary);
+      display: block;
+      margin-bottom: 4px;
+    }
+    .reader-answer-editor textarea {
+      width: 100%;
+      min-height: 90px;
+      padding: 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.94rem;
+      resize: vertical;
+      background: #ffffff;
+      margin-bottom: 8px;
+    }
+    .reader-answer-editor textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .reader-answer-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
 
     .admin-item {
       display: flex;
@@ -231,6 +292,21 @@
       flex-wrap: wrap;
       margin-bottom: 16px;
     }
+
+    .admin-user-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg-soft);
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      margin-bottom: 14px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      gap: 8px;
+      flex-wrap: wrap;
+    }
   </style>
 </head>
 <body>
@@ -239,25 +315,33 @@
     <div class="top-bar">
       <div>
         <h2>📖 Bloco de Estudos</h2>
-        <div id="statusStorage" class="status-storage">Verificando armazenamento...</div>
+        <div id="statusStorage" class="status-storage">Conectando à nuvem...</div>
       </div>
-      <button type="button" class="btn btn-accent" onclick="abrirModal('loginModal')">⚙️ Painel Admin</button>
+      <button type="button" class="btn btn-accent" onclick="abrirPainelAdmin()">⚙️ Painel Admin</button>
     </div>
 
     <div id="container-estudos"></div>
   </div>
 
-  <!-- Modal de Senha -->
+  <!-- Modal de Login Firebase Auth -->
   <div id="loginModal" class="modal">
-    <div class="modal-content" style="max-width: 350px;">
-      <h3>Acesso Restrito</h3>
-      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">Digite a senha (padrão: <code>***********</code>):</p>
+    <div class="modal-content" style="max-width: 380px;">
+      <h3>Acesso Restrito (Admin)</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px;">
+        Entre com seu e-mail e senha cadastrados no Firebase:
+      </p>
       <div class="form-group">
-        <input type="password" id="senhaAdmin" placeholder="Senha..." onkeypress="if(event.key==='Enter') verificarSenha()" />
+        <label for="emailAdmin">E-mail</label>
+        <input type="email" id="emailAdmin" placeholder="seu-email@exemplo.com" autocomplete="email" />
       </div>
+      <div class="form-group">
+        <label for="senhaAdmin">Senha</label>
+        <input type="password" id="senhaAdmin" placeholder="Senha..." autocomplete="current-password" onkeypress="if(event.key==='Enter') fazerLoginAdmin()" />
+      </div>
+      <div id="msgErroLogin" class="erro-login"></div>
       <div style="display: flex; gap: 10px; justify-content: flex-end;">
         <button type="button" class="btn btn-secondary" onclick="fecharModal('loginModal')">Cancelar</button>
-        <button type="button" class="btn" onclick="verificarSenha()">Entrar</button>
+        <button type="button" class="btn" id="btnEntrarAdmin" onclick="fazerLoginAdmin()">Entrar</button>
       </div>
     </div>
   </div>
@@ -266,6 +350,10 @@
   <div id="adminModal" class="modal">
     <div class="modal-content">
       <h3>Painel Administrativo</h3>
+      <div class="admin-user-bar">
+        <span id="adminEmailLogado">Autenticado</span>
+        <button type="button" class="btn btn-danger" style="padding: 4px 10px; font-size: 0.8rem;" onclick="sairAdmin()">🚪 Sair</button>
+      </div>
       <div class="admin-actions">
         <button type="button" class="btn btn-accent" onclick="abrirEditor(-1)">➕ Novo Estudo</button>
         <button type="button" class="btn" onclick="exportarJSON()">💾 Exportar Backup</button>
@@ -317,663 +405,1026 @@
 
       <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px;">
         <button type="button" class="btn btn-secondary" onclick="fecharModal('editorModal'); abrirModal('adminModal');">Voltar</button>
-        <button type="button" class="btn" onclick="salvarEstudo()">Salvar Estudo</button>
+        <button type="button" class="btn" id="btnSalvarEstudo" onclick="salvarEstudo()">Salvar Estudo</button>
       </div>
     </div>
   </div>
-<script>
-  // ==========================================
-  // 1. CONFIGURAÇÃO E ARMAZENAMENTO
-  // ==========================================
-  // Hash SHA-256 da senha "1234" (não fica em texto claro no código)
-  const HASH_SENHA_MESTRA = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4";
-  const STORAGE_KEY = "meus_estudos_biblicos_v1";
-  const CHAVES_LEGADAS = ["meus_estudos_biblicos_v2", "meus_estudos_biblicos"];
 
-  const abaAtivaPorCard = {};
+  <script>
+    // ==========================================
+    // 1. CONFIGURAÇÃO E ARMAZENAMENTO LOCAL
+    // ==========================================
+    const STORAGE_KEY = "meus_estudos_biblicos_v1";
+    const RESPOSTAS_LEITOR_KEY = "respostas_leitor_estudos_v1";
+    const CHAVES_LEGADAS = ["meus_estudos_biblicos_v2", "meus_estudos_biblicos"];
 
-  let estadoTTS = {
-    estudoIdx: null,
-    frases: [],
-    fraseAtual: 0,
-    pausado: false,
-    lendo: false
-  };
+    const abaAtivaPorCard = {};
+    const editandoRespostaPorId = {};
+    let respostasLeitor = {};
+    window.usuarioAdminAtual = null;
 
-  const ABREVIACOES_LIVROS = {
-    "gn": "Gênesis", "ex": "Êxodo", "êx": "Êxodo", "lv": "Levítico", "nm": "Números",
-    "dt": "Deuteronômio", "js": "Josué", "jz": "Juízes", "rt": "Rute",
-    "1sm": "Primeiro Samuel", "2sm": "Segundo Samuel", "1rs": "Primeiro Reis", "2rs": "Segundo Reis",
-    "1cr": "Primeiro Crônicas", "2cr": "Segundo Crônicas", "ed": "Esdras", "ne": "Neemias",
-    "et": "Ester", "jó": "Jó", "sl": "Salmos", "pv": "Provérbios", "ec": "Eclesiastes",
-    "ct": "Cânticos", "is": "Isaías", "jr": "Jeremias", "lm": "Lamentações", "ez": "Ezequiel",
-    "dn": "Daniel", "os": "Oséias", "jl": "Joel", "am": "Amós", "ob": "Obadias",
-    "jn": "Jonas", "mq": "Miquéias", "na": "Naum", "hc": "Habacuque", "sf": "Sofonias",
-    "ag": "Ageu", "zc": "Zacarias", "ml": "Malaquias", "mt": "Mateus", "mc": "Marcos",
-    "lc": "Lucas", "jo": "João", "at": "Atos", "rm": "Romanos",
-    "1co": "Primeiro Coríntios", "2co": "Segundo Coríntios", "gl": "Gálatas", "ef": "Efésios",
-    "fp": "Filipenses", "cl": "Colossenses", "1ts": "Primeiro Tessalonicenses", "2ts": "Segundo Tessalonicenses",
-    "1tm": "Primeiro Timóteo", "2tm": "Segundo Timóteo", "tt": "Tito", "fm": "Filemom",
-    "hb": "Hebreus", "tg": "Tiago", "1pe": "Primeiro Pedro", "2pe": "Segundo Pedro",
-    "1jo": "Primeiro João", "2jo": "Segundo João", "3jo": "Terceiro João", "jd": "Judas",
-    "ap": "Apocalipse"
-  };
-
-  const ESTUDO_PADRAO = [
-    {
-      ref: "João 3:16",
-      resumo: "Síntese da iniciativa amorosa de Deus ao entregar seu Filho único para que todo o que nele crê receba a vida eterna.",
-      contexto: [
-        "Cenário: Diálogo noturno em Jerusalém entre Jesus e Nicodemos, fariseu e membro do Sinédrio.",
-        "Argumento Central: Jesus confronta a visão baseada em linhagem, apontando para a necessidade do novo nascimento e da cruz.",
-        "Impacto Cultural: Rompe o exclusivismo nacionalista ao mirar o mundo inteiro."
-      ],
-      originais: [
-        { word: "Οὕτως", trans: "Houtōs", desc: "Advérbio de modo ('desta maneira'): destaca a forma concreta do amor divino." },
-        { word: "κόσμον", trans: "Kosmon", desc: "Substantivo ('mundo'): designa a humanidade em alienação contra Deus." },
-        { word: "μονογενῆ", trans: "Monogenē", desc: "Adjetivo ('único'): aponta para a unicidade de natureza com o Pai." },
-        { word: "πιστεύων", trans: "Pisteuōn", desc: "Particípio ('crê continuamente'): confiança perseverante e relacional." }
-      ],
-      tipologia: [
-        "Eco de Gênesis 22: Contrasta a entrega de Isaque no monte Moriá com a entrega real do Filho.",
-        "A Serpente de Bronze (Nm 21. 2-3): Imagem de olhar com fé para o sinal levantado."
-      ],
-      teologia: [
-        "Iniciativa Divina: A cruz é resultado do amor eterno de Deus pela humanidade caída.",
-        "Escatologia Presente: A vida eterna começa no presente pela fé."
-      ],
-      reflexao: "O advérbio houtōs enfatiza mais a intensidade do amor de Deus ou o método de sua entrega?"
-    }
-  ];
-
-  let listaEstudos = JSON.parse(JSON.stringify(ESTUDO_PADRAO));
-  let storageDisponivel = false;
-
-  function verificarESalvarStorage() {
-    const statusEl = document.getElementById("statusStorage");
-    try {
-      const testeKey = "__teste_storage__";
-      localStorage.setItem(testeKey, "ok");
-      localStorage.removeItem(testeKey);
-      storageDisponivel = true;
-      if (statusEl) statusEl.textContent = "💾 Salvamento automático ativo";
-    } catch (e) {
-      storageDisponivel = false;
-      if (statusEl) statusEl.textContent = "⚠️ Modo local restrito: use Exportar/Importar Backup";
-    }
-  }
-
-  function carregarDadosIniciais() {
-    verificarESalvarStorage();
-    if (!storageDisponivel) return;
-
-    try {
-      let salvo = localStorage.getItem(STORAGE_KEY);
-      if (salvo === null) {
-        for (const chaveAntiga of CHAVES_LEGADAS) {
-          const dadoAntigo = localStorage.getItem(chaveAntiga);
-          if (dadoAntigo !== null) {
-            salvo = dadoAntigo;
-            localStorage.setItem(STORAGE_KEY, dadoAntigo);
-            break;
-          }
-        }
-      }
-
-      if (salvo !== null) {
-        const parsed = JSON.parse(salvo);
-        if (Array.isArray(parsed)) {
-          listaEstudos = parsed;
-        }
-      } else {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(listaEstudos));
-      }
-    } catch (e) {}
-  }
-
-  function salvarDados() {
-    if (storageDisponivel) {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(listaEstudos));
-      } catch (e) {}
-    }
-    renderizarEstudos();
-  }
-
-  function exportarJSON() {
-    const blob = new Blob([JSON.stringify(listaEstudos, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "estudos-biblicos-backup.json";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
-
-  function importarJSON(event) {
-    const file = event.target.files && event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const dados = JSON.parse(e.target.result);
-        if (!Array.isArray(dados)) {
-          alert("Arquivo JSON inválido.");
-          return;
-        }
-        listaEstudos = dados;
-        salvarDados();
-        abrirPainelAdmin();
-        alert("Backup importado com sucesso!");
-      } catch (err) {
-        alert("Não foi possível ler o arquivo JSON.");
-      }
-    };
-    reader.readAsText(file, "utf-8");
-    event.target.value = "";
-  }
-
-  // ==========================================
-  // 2. RENDERIZAÇÃO E NAVEGAÇÃO DE ABAS
-  // ==========================================
-  function renderizarEstudos() {
-    const container = document.getElementById("container-estudos");
-    container.innerHTML = "";
-
-    if (!listaEstudos || listaEstudos.length === 0) {
-      container.innerHTML = '<p style="text-align:center; color:#6b7280; padding:20px;">Nenhum estudo cadastrado.</p>';
-      return;
-    }
-
-    listaEstudos.forEach((s, idx) => {
-      const idCard = `card-${idx}`;
-      const idPauseBtn = `btn-pause-${idx}`;
-      const abaAtual = abaAtivaPorCard[idx] || "ctx";
-      abaAtivaPorCard[idx] = abaAtual;
-
-      const htmlOriginais = Array.isArray(s.originais)
-        ? s.originais.map(o => `
-            <tr><td class="greek-word">${o.word || ""}</td><td><em>${o.trans || ""}</em></td><td>${o.desc || ""}</td></tr>
-          `).join("")
-        : "";
-
-      const htmlContexto = (s.contexto || []).map(c => `<li>${c}</li>`).join("");
-      const htmlTipologia = (s.tipologia || []).map(t => `<li>${t}</li>`).join("");
-      const htmlTeologia = (s.teologia || []).map(t => `<li>${t}</li>`).join("");
-
-      const cardHtml = `
-        <div class="exegesis-card" id="${idCard}">
-          <header class="card-header">
-            <span class="badge">Estudo #${idx + 1}</span>
-            <h1>${s.ref || ""}</h1>
-            <p class="verse-summary">${s.resumo || ""}</p>
-            <div class="tts-bar">
-              <button type="button" class="btn btn-tts" onclick="lerEstudo(${idx})">🔊 Ouvir Estudo</button>
-              <button type="button" class="btn btn-pause" id="${idPauseBtn}" onclick="alternarPausa(${idx})">⏸️ Pausar</button>
-              <button type="button" class="btn btn-stop" onclick="pararLeitura()">⏹️ Parar</button>
-            </div>
-          </header>
-          <nav class="tabs-nav">
-            <button type="button" class="tab-btn ${abaAtual === "ctx" ? "active" : ""}" onclick="mudarAba(event, ${idx}, '${idCard}', 'ctx')">1. Contexto</button>
-            <button type="button" class="tab-btn ${abaAtual === "ori" ? "active" : ""}" onclick="mudarAba(event, ${idx}, '${idCard}', 'ori')">2. Originais</button>
-            <button type="button" class="tab-btn ${abaAtual === "tip" ? "active" : ""}" onclick="mudarAba(event, ${idx}, '${idCard}', 'tip')">3. Conexões</button>
-            <button type="button" class="tab-btn ${abaAtual === "teo" ? "active" : ""}" onclick="mudarAba(event, ${idx}, '${idCard}', 'teo')">4. Teologia</button>
-          </nav>
-          <div id="${idCard}-ctx" class="tab-content ${abaAtual === "ctx" ? "active" : ""}">
-            <h4>Contexto Imediato e Histórico-Cultural</h4>
-            <ul class="study-list">${htmlContexto}</ul>
-          </div>
-          <div id="${idCard}-ori" class="tab-content ${abaAtual === "ori" ? "active" : ""}">
-            <h4>Termos Originais</h4>
-            <div class="table-wrapper">
-              <table>
-                <thead><tr><th>Termo</th><th>Transliteração</th><th>Análise</th></tr></thead>
-                <tbody>${htmlOriginais}</tbody>
-              </table>
-            </div>
-          </div>
-          <div id="${idCard}-tip" class="tab-content ${abaAtual === "tip" ? "active" : ""}">
-            <h4>Tipologia e Conexões</h4>
-            <ul class="study-list">${htmlTipologia}</ul>
-          </div>
-          <div id="${idCard}-teo" class="tab-content ${abaAtual === "teo" ? "active" : ""}">
-            <h4>Síntese e Reflexão</h4>
-            <ul class="study-list">${htmlTeologia}</ul>
-            <div class="reflection-box">
-              <strong>Questão para Aprofundamento:</strong>
-              ${s.reflexao || ""}
-            </div>
-          </div>
-        </div>
-      `;
-      container.innerHTML += cardHtml;
-    });
-  }
-
-  function mudarAba(event, idx, idCard, abaAlvo) {
-    abaAtivaPorCard[idx] = abaAlvo;
-    const card = document.getElementById(idCard);
-    if (!card) return;
-    card.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
-    card.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-    const alvo = document.getElementById(`${idCard}-${abaAlvo}`);
-    if (alvo) alvo.classList.add("active");
-    event.currentTarget.classList.add("active");
-  }
-
-  // ==========================================
-  // 3. LEITURA POR VOZ (TTS) E PRONÚNCIA
-  // ==========================================
-  function expandirLivro(prefixo) {
-    const chave = prefixo.replace(/\.+$/, "").trim().toLowerCase();
-    return ABREVIACOES_LIVROS[chave] || prefixo.trim();
-  }
-
-  function formatarListaVersiculos(parteVersiculo) {
-    if (!parteVersiculo) return "";
-    const limpo = parteVersiculo.trim();
-
-    const matchIntervalo = limpo.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
-    if (matchIntervalo) {
-      return `versículos ${matchIntervalo[1]} a ${matchIntervalo[2]}`;
-    }
-
-    if (limpo.includes(",") || /\be\b/i.test(limpo)) {
-      const itens = limpo
-        .split(/\s*,\s*|\s+e\s+/i)
-        .map(item => item.trim())
-        .filter(Boolean);
-      if (itens.length > 1) {
-        const ult = itens.pop();
-        return `versículos ${itens.join(", ")} e ${ult}`;
-      }
-    }
-
-    return `versículo ${limpo}`;
-  }
-
-  function formatarTextoParaVoz(texto) {
-    if (!texto) return "";
-
-    let resultado = texto;
-
-    // Substituições fonéticas (YHWH e termos de estudo)
-    const substituicoesFoneticas = [
-      { regex: /\bYHWH\b/gi, fala: "Iavé" },
-      { regex: /\bEl Shaddai\b/gi, fala: "El Shadai" },
-      { regex: /\bSiftayim arelim\b/gi, fala: "siftáim arelim" },
-      { regex: /\bavodah kashah\b/gi, fala: "avodá cachá" },
-      { regex: /\bChagag\b/gi, fala: "chagágu" },
-      { regex: /\bSha'ah\b/gi, fala: "chaá" },
-      { regex: /\bRa'a\b/gi, fala: "raá" },
-      { regex: /\bYada\b/gi, fala: "iadá" },
-      { regex: /\bKaved\b/gi, fala: "cavêd" }
-    ];
-
-    for (const item of substituicoesFoneticas) {
-      resultado = resultado.replace(item.regex, item.fala);
-    }
-
-    resultado = resultado.replace(
-      /(^|[\s(;])((?:[123]\s*)?[A-Za-zÀ-ú]{1,6})\.?\s+(\d+)\s*[:.]\s*(\d+(?:\s*[-–—]\s*\d+)?(?:\s*,\s*\d+(?:\s*[-–—]\s*\d+)?)*)/g,
-      (_, prefixoEspaco, livro, cap, versLista) => {
-        const nomeLivro = expandirLivro(livro);
-        const textoVers = formatarListaVersiculos(versLista);
-        return `${prefixoEspaco}${nomeLivro}, capítulo ${cap}, ${textoVers}`;
-      }
-    );
-
-    resultado = resultado.replace(
-      /(^|[\s(;])((?:[123]\s*)?[A-Za-zÀ-ú]{1,4})\.?\s+(\d+)\s*[-–—]\s*(\d+)\b(?!\s*[:.])/g,
-      (match, prefixoEspaco, livro, capIni, capFim) => {
-        const chave = livro.replace(/\.+$/, "").trim().toLowerCase();
-        if (ABREVIACOES_LIVROS[chave]) {
-          return `${prefixoEspaco}${ABREVIACOES_LIVROS[chave]}, capítulos ${capIni} a ${capFim}`;
-        }
-        return match;
-      }
-    );
-
-    resultado = resultado.replace(
-      /(^|[\s(;])((?:[123]\s*)?[A-Za-zÀ-ú]{1,4})\.?\s+(\d+)\b(?!\s*[:.]|\s*[-–—]|\s*(?:capítulo|capítulos|versículo|versículos))/g,
-      (match, prefixoEspaco, livro, cap) => {
-        const chave = livro.replace(/\.+$/, "").trim().toLowerCase();
-        if (ABREVIACOES_LIVROS[chave]) {
-          return `${prefixoEspaco}${ABREVIACOES_LIVROS[chave]}, capítulo ${cap}`;
-        }
-        return match;
-      }
-    );
-
-    resultado = resultado.replace(
-      /\b(vv?)\.\s*(\d+(?:\s*[-–—]\s*\d+)?(?:\s*,\s*\d+(?:\s*[-–—]\s*\d+)?)*)\b/gi,
-      (_, abrev, versLista) => {
-        const textoVers = formatarListaVersiculos(versLista);
-        if (abrev.toLowerCase() === "vv" && textoVers.startsWith("versículo ")) {
-          return textoVers.replace("versículo ", "versículos ");
-        }
-        return textoVers;
-      }
-    );
-
-    resultado = resultado.replace(
-      /\b(\d{1,3})\s*:\s*(\d{1,3})\b/g,
-      (_, num1, num2) => `capítulo ${num1}, versículo ${num2}`
-    );
-
-    return resultado;
-  }
-
-  function resetarBotoesPausa() {
-    document.querySelectorAll('[id^="btn-pause-"]').forEach(btn => {
-      btn.innerHTML = "⏸️ Pausar";
-    });
-  }
-
-  function montarFilaDeFrases(s, abaInicial = "ctx") {
-    const refFormatada = formatarTextoParaVoz(s.ref);
-    const fila = [];
-
-    const blocos = {
-      ctx: () => {
-        fila.push(`Estudo bíblico de ${refFormatada}.`);
-        if (s.resumo) fila.push(`Resumo: ${formatarTextoParaVoz(s.resumo)}`);
-        if (s.contexto && s.contexto.length > 0) {
-          fila.push("Contexto histórico:");
-          s.contexto.forEach(c => fila.push(formatarTextoParaVoz(c)));
-        }
-      },
-      ori: () => {
-        const originaisArr = s.originais || [];
-        if (originaisArr.length > 0) {
-          fila.push("Termos originais:");
-          originaisArr.forEach(o => {
-            fila.push(`Termo ${o.word}, transliteração ${o.trans}, significado: ${formatarTextoParaVoz(o.desc)}`);
-          });
-        }
-      },
-      tip: () => {
-        const tipologiaArr = s.tipologia || [];
-        if (tipologiaArr.length > 0) {
-          fila.push("Conexões e tipologia:");
-          tipologiaArr.forEach(t => fila.push(formatarTextoParaVoz(t)));
-        }
-      },
-      teo: () => {
-        const teologiaArr = s.teologia || [];
-        if (teologiaArr.length > 0) {
-          fila.push("Síntese teológica:");
-          teologiaArr.forEach(t => fila.push(formatarTextoParaVoz(t)));
-        }
-        if (s.reflexao) {
-          fila.push(`Questão para aprofundamento: ${formatarTextoParaVoz(s.reflexao)}`);
-        }
-      }
-    };
-
-    const ordemAbas = ["ctx", "ori", "tip", "teo"];
-    const inicioIdx = Math.max(0, ordemAbas.indexOf(abaInicial));
-
-    for (let i = inicioIdx; i < ordemAbas.length; i++) {
-      const chaveAba = ordemAbas[i];
-      if (blocos[chaveAba]) blocos[chaveAba]();
-    }
-
-    return fila;
-  }
-
-  function falarProximaFrase() {
-    if (estadoTTS.pausado || !estadoTTS.lendo) return;
-
-    if (estadoTTS.fraseAtual >= estadoTTS.frases.length) {
-      pararLeitura();
-      return;
-    }
-
-    const texto = estadoTTS.frases[estadoTTS.fraseAtual];
-    const utterance = new SpeechSynthesisUtterance(texto);
-    utterance.lang = "pt-BR";
-    utterance.rate = 1.0;
-
-    utterance.onend = () => {
-      if (!estadoTTS.pausado && estadoTTS.lendo) {
-        estadoTTS.fraseAtual++;
-        falarProximaFrase();
-      }
-    };
-
-    utterance.onerror = () => {
-      if (!estadoTTS.pausado && estadoTTS.lendo) {
-        estadoTTS.fraseAtual++;
-        falarProximaFrase();
-      }
-    };
-
-    window.speechSynthesis.speak(utterance);
-  }
-
-  function lerEstudo(idx) {
-    try {
-      if (!("speechSynthesis" in window)) {
-        alert("Seu navegador não suporta leitura de voz.");
-        return;
-      }
-
-      window.speechSynthesis.cancel();
-      resetarBotoesPausa();
-
-      const s = listaEstudos[idx];
-      const abaAtual = abaAtivaPorCard[idx] || "ctx";
-
-      estadoTTS = {
-        estudoIdx: idx,
-        frases: montarFilaDeFrases(s, abaAtual),
-        fraseAtual: 0,
-        pausado: false,
-        lendo: true
-      };
-
-      falarProximaFrase();
-    } catch (e) {
-      alert("Erro ao iniciar a leitura por voz.");
-    }
-  }
-
-  function alternarPausa(idx) {
-    try {
-      if (!("speechSynthesis" in window)) return;
-      if (estadoTTS.estudoIdx !== idx || !estadoTTS.lendo) return;
-
-      const btn = document.getElementById(`btn-pause-${idx}`);
-
-      if (!estadoTTS.pausado) {
-        estadoTTS.pausado = true;
-        window.speechSynthesis.cancel();
-        if (btn) btn.innerHTML = "▶️ Continuar";
-      } else {
-        estadoTTS.pausado = false;
-        if (btn) btn.innerHTML = "⏸️ Pausar";
-        falarProximaFrase();
-      }
-    } catch (e) {}
-  }
-
-  function pararLeitura() {
-    estadoTTS = {
+    let estadoTTS = {
       estudoIdx: null,
       frases: [],
       fraseAtual: 0,
       pausado: false,
       lendo: false
     };
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
+
+    const ABREVIACOES_LIVROS = {
+      "gn": "Gênesis", "ex": "Êxodo", "êx": "Êxodo", "lv": "Levítico", "nm": "Números",
+      "dt": "Deuteronômio", "js": "Josué", "jz": "Juízes", "rt": "Rute",
+      "1sm": "Primeiro Samuel", "2sm": "Segundo Samuel", "1rs": "Primeiro Reis", "2rs": "Segundo Reis",
+      "1cr": "Primeiro Crônicas", "2cr": "Segundo Crônicas", "ed": "Esdras", "ne": "Neemias",
+      "et": "Ester", "jó": "Jó", "sl": "Salmos", "pv": "Provérbios", "ec": "Eclesiastes",
+      "ct": "Cânticos", "is": "Isaías", "jr": "Jeremias", "lm": "Lamentações", "ez": "Ezequiel",
+      "dn": "Daniel", "os": "Oséias", "jl": "Joel", "am": "Amós", "ob": "Obadias",
+      "jn": "Jonas", "mq": "Miquéias", "na": "Naum", "hc": "Habacuque", "sf": "Sofonias",
+      "ag": "Ageu", "zc": "Zacarias", "ml": "Malaquias", "mt": "Mateus", "mc": "Marcos",
+      "lc": "Lucas", "jo": "João", "at": "Atos", "rm": "Romanos",
+      "1co": "Primeiro Coríntios", "2co": "Segundo Coríntios", "gl": "Gálatas", "ef": "Efésios",
+      "fp": "Filipenses", "cl": "Colossenses", "1ts": "Primeiro Tessalonicenses", "2ts": "Segundo Tessalonicenses",
+      "1tm": "Primeiro Timóteo", "2tm": "Segundo Timóteo", "tt": "Tito", "fm": "Filemom",
+      "hb": "Hebreus", "tg": "Tiago", "1pe": "Primeiro Pedro", "2pe": "Segundo Pedro",
+      "1jo": "Primeiro João", "2jo": "Segundo João", "3jo": "Terceiro João", "jd": "Judas",
+      "ap": "Apocalipse"
+    };
+
+    const ESTUDO_PADRAO = [
+      {
+        id: "estudo-0001-joao-3-16",
+        ordem: 1,
+        ref: "João 3:16",
+        resumo: "Síntese da iniciativa amorosa de Deus ao entregar seu Filho único para que todo o que nele crê receba a vida eterna.",
+        contexto: [
+          "Cenário: Diálogo noturno em Jerusalém entre Jesus e Nicodemos, fariseu e membro do Sinédrio.",
+          "Argumento Central: Jesus confronta a visão baseada em linhagem, apontando para a necessidade do novo nascimento e da cruz.",
+          "Impacto Cultural: Rompe o exclusivismo nacionalista ao mirar o mundo inteiro."
+        ],
+        originais: [
+          { word: "Οὕτως", trans: "Houtōs", desc: "Advérbio de modo ('desta maneira'): destaca a forma concreta do amor divino." },
+          { word: "κόσμον", trans: "Kosmon", desc: "Substantivo ('mundo'): designa a humanidade em alienação contra Deus." },
+          { word: "μονογενῆ", trans: "Monogenē", desc: "Adjetivo ('único'): aponta para a unicidade de natureza com o Pai." },
+          { word: "πιστεύων", trans: "Pisteuōn", desc: "Particípio ('crê continuamente'): confiança perseverante e relacional." }
+        ],
+        tipologia: [
+          "Eco de Gênesis 22: Contrasta a entrega de Isaque no monte Moriá com a entrega real do Filho.",
+          "A Serpente de Bronze (Nm 21. 2-3): Imagem de olhar com fé para o sinal levantado."
+        ],
+        teologia: [
+          "Iniciativa Divina: A cruz é resultado do amor eterno de Deus pela humanidade caída.",
+          "Escatologia Presente: A vida eterna começa no presente pela fé."
+        ],
+        reflexao: "O advérbio houtōs enfatiza mais a intensidade do amor de Deus ou o método de sua entrega?"
+      }
+    ];
+
+    let listaEstudos = JSON.parse(JSON.stringify(ESTUDO_PADRAO));
+    let storageDisponivel = false;
+
+    function escaparHTML(texto) {
+      return String(texto || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
     }
-    resetarBotoesPausa();
-  }
 
-  // ==========================================
-  // 4. ACESSO RESTRITO DO ADMIN E CRUD
-  // ==========================================
-  async function gerarHashSHA256(texto) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(texto);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
-  }
-
-  function isAdminAutenticado() {
-    return sessionStorage.getItem("adminAutenticado") === "true";
-  }
-
-  function abrirModal(id) {
-    document.getElementById(id).classList.add("active");
-  }
-
-  function fecharModal(id) {
-    document.getElementById(id).classList.remove("active");
-  }
-
-  async function verificarSenha() {
-    const inputEl = document.getElementById("senhaAdmin");
-    const senha = inputEl.value;
-    inputEl.value = "";
-    if (!senha) return;
-
-    const hashDigitado = await gerarHashSHA256(senha);
-    if (hashDigitado === HASH_SENHA_MESTRA) {
-      sessionStorage.setItem("adminAutenticado", "true");
-      fecharModal("loginModal");
-      abrirPainelAdmin();
-    } else {
-      alert("Senha incorreta!");
-    }
-  }
-
-  function abrirPainelAdmin() {
-    if (!isAdminAutenticado()) {
-      abrirModal("loginModal");
-      return;
+    function atualizarStatus(texto) {
+      const statusEl = document.getElementById("statusStorage");
+      if (statusEl) statusEl.textContent = texto;
     }
 
-    const lista = document.getElementById("lista-admin");
-    lista.innerHTML = "";
+    function verificarESalvarStorage() {
+      try {
+        const testeKey = "__teste_storage__";
+        localStorage.setItem(testeKey, "ok");
+        localStorage.removeItem(testeKey);
+        storageDisponivel = true;
+      } catch (e) {
+        storageDisponivel = false;
+      }
+    }
 
-    listaEstudos.forEach((s, idx) => {
-      lista.innerHTML += `
-        <div class="admin-item">
-          <span><strong>${s.ref}</strong> - ${(s.resumo || "").substring(0, 30)}...</span>
-          <div style="display:flex; gap:6px;">
-            <button type="button" class="btn" style="padding:4px 10px; font-size:0.8rem;" onclick="abrirEditor(${idx})">Editar</button>
-            <button type="button" class="btn btn-danger" style="padding:4px 10px; font-size:0.8rem;" onclick="excluirEstudo(${idx})">Excluir</button>
+    function carregarRespostasLeitor() {
+      if (!storageDisponivel) return;
+      try {
+        const salvo = localStorage.getItem(RESPOSTAS_LEITOR_KEY);
+        if (salvo) {
+          const parsed = JSON.parse(salvo);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            respostasLeitor = parsed;
+          }
+        }
+      } catch (e) {}
+    }
+
+    function salvarRespostasLeitor() {
+      if (!storageDisponivel) return;
+      try {
+        localStorage.setItem(RESPOSTAS_LEITOR_KEY, JSON.stringify(respostasLeitor));
+      } catch (e) {}
+    }
+
+    function normalizarEstudos(arr) {
+      if (!Array.isArray(arr)) return [];
+      return arr.map((item, i) => ({
+        id: item.id || `estudo-${String(i + 1).padStart(4, "0")}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        ordem: typeof item.ordem === "number" ? item.ordem : (i + 1),
+        ref: item.ref || "",
+        resumo: item.resumo || "",
+        contexto: Array.isArray(item.contexto) ? item.contexto : [],
+        originais: Array.isArray(item.originais) ? item.originais : [],
+        tipologia: Array.isArray(item.tipologia) ? item.tipologia : [],
+        teologia: Array.isArray(item.teologia) ? item.teologia : [],
+        reflexao: item.reflexao || ""
+      }));
+    }
+
+    function salvarCacheLocal() {
+      if (!storageDisponivel) return;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(listaEstudos));
+      } catch (e) {}
+    }
+
+    function carregarCacheLocal() {
+      verificarESalvarStorage();
+      if (!storageDisponivel) return;
+
+      carregarRespostasLeitor();
+
+      try {
+        let salvo = localStorage.getItem(STORAGE_KEY);
+        if (salvo === null) {
+          for (const chaveAntiga of CHAVES_LEGADAS) {
+            const dadoAntigo = localStorage.getItem(chaveAntiga);
+            if (dadoAntigo !== null) {
+              salvo = dadoAntigo;
+              localStorage.setItem(STORAGE_KEY, dadoAntigo);
+              break;
+            }
+          }
+        }
+
+        if (salvo !== null) {
+          const parsed = JSON.parse(salvo);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            listaEstudos = normalizarEstudos(parsed);
+          }
+        } else {
+          salvarCacheLocal();
+        }
+      } catch (e) {}
+    }
+
+    window.aplicarEstudosDaNuvem = function(estudosNuvem) {
+      if (estudosNuvem.length > 0) {
+        listaEstudos = normalizarEstudos(estudosNuvem);
+        salvarCacheLocal();
+      }
+      renderizarEstudos();
+      if (document.getElementById("adminModal").classList.contains("active")) {
+        preencherListaAdmin();
+      }
+      atualizarStatus("☁️ Sincronizado em tempo real (Firestore)");
+    };
+
+    window.salvarDados = async function(estudoAlterado = null, estudoExcluidoId = null) {
+      listaEstudos = normalizarEstudos(listaEstudos);
+      salvarCacheLocal();
+      renderizarEstudos();
+
+      if (!window.firebaseServices) {
+        atualizarStatus("⚠️ Serviços Firebase ainda carregando...");
+        return false;
+      }
+
+      if (!window.usuarioAdminAtual) {
+        alert("Sua sessão de administrador expirou. Faça login novamente.");
+        fecharModal("editorModal");
+        fecharModal("adminModal");
+        abrirModal("loginModal");
+        return false;
+      }
+
+      try {
+        if (estudoExcluidoId) {
+          await window.firebaseServices.excluirEstudoNuvem(estudoExcluidoId);
+        } else if (estudoAlterado) {
+          await window.firebaseServices.salvarEstudoNuvem(estudoAlterado);
+        } else {
+          await window.firebaseServices.sincronizarListaCompleta(listaEstudos);
+        }
+        atualizarStatus("☁️ Sincronizado em tempo real (Firestore)");
+        return true;
+      } catch (err) {
+        console.error("Erro ao gravar no Firestore:", err);
+        alert("Erro de permissão ou rede ao gravar no Firestore: " + (err.message || err));
+        atualizarStatus("⚠️ Falha ao gravar na nuvem");
+        return false;
+      }
+    };
+
+    function exportarJSON() {
+      const blob = new Blob([JSON.stringify(listaEstudos, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "estudos-biblicos-backup.json";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function importarJSON(event) {
+      if (!isAdminAutenticado()) {
+        abrirModal("loginModal");
+        return;
+      }
+
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const dados = JSON.parse(e.target.result);
+          if (!Array.isArray(dados)) {
+            alert("Arquivo JSON inválido.");
+            return;
+          }
+          listaEstudos = normalizarEstudos(dados);
+          const ok = await window.salvarDados();
+          if (ok) {
+            abrirPainelAdmin();
+            alert("Backup importado e sincronizado com sucesso!");
+          }
+        } catch (err) {
+          alert("Não foi possível ler o arquivo JSON.");
+        }
+      };
+      reader.readAsText(file, "utf-8");
+      event.target.value = "";
+    }
+
+    // ==========================================
+    // 2. RESPOSTAS DO LEITOR (ABA 4)
+    // ==========================================
+    function abrirEditorRespostaLeitor(estudoId) {
+      editandoRespostaPorId[estudoId] = true;
+      renderizarEstudos();
+      const campo = document.getElementById(`txt-resposta-${estudoId}`);
+      if (campo) {
+        campo.focus();
+        campo.setSelectionRange(campo.value.length, campo.value.length);
+      }
+    }
+
+    function cancelarEditorRespostaLeitor(estudoId) {
+      delete editandoRespostaPorId[estudoId];
+      renderizarEstudos();
+    }
+
+    function salvarRespostaLeitor(estudoId) {
+      const campo = document.getElementById(`txt-resposta-${estudoId}`);
+      if (!campo) return;
+
+      const texto = campo.value.trim();
+      if (!texto) {
+        delete respostasLeitor[estudoId];
+      } else {
+        respostasLeitor[estudoId] = texto;
+      }
+
+      salvarRespostasLeitor();
+      delete editandoRespostaPorId[estudoId];
+      renderizarEstudos();
+    }
+
+    function excluirRespostaLeitor(estudoId) {
+      if (confirm("Deseja apagar sua resposta para esta questão?")) {
+        delete respostasLeitor[estudoId];
+        delete editandoRespostaPorId[estudoId];
+        salvarRespostasLeitor();
+        renderizarEstudos();
+      }
+    }
+
+    function gerarHtmlRespostaLeitor(estudoId) {
+      const respostaAtual = respostasLeitor[estudoId] || "";
+      const emEdicao = Boolean(editandoRespostaPorId[estudoId]);
+
+      if (emEdicao) {
+        return `
+          <div class="reader-answer-area">
+            <span class="reader-answer-label">Sua Reflexão / Resposta Pessoal</span>
+            <div class="reader-answer-editor">
+              <textarea id="txt-resposta-${estudoId}" placeholder="Escreva aqui sua resposta ou anotação pessoal...">${escaparHTML(respostaAtual)}</textarea>
+              <div class="reader-answer-actions">
+                <button type="button" class="btn btn-sm" onclick="salvarRespostaLeitor('${estudoId}')">💾 Salvar resposta</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="cancelarEditorRespostaLeitor('${estudoId}')">Cancelar</button>
+              </div>
+            </div>
           </div>
+        `;
+      }
+
+      if (respostaAtual) {
+        return `
+          <div class="reader-answer-area">
+            <span class="reader-answer-label">Sua Resposta:</span>
+            <div class="reader-answer-saved">${escaparHTML(respostaAtual)}</div>
+            <div class="reader-answer-actions">
+              <button type="button" class="btn btn-sm" onclick="abrirEditorRespostaLeitor('${estudoId}')">✏️ Editar resposta</button>
+              <button type="button" class="btn btn-danger btn-sm" onclick="excluirRespostaLeitor('${estudoId}')">🗑️ Apagar</button>
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="reader-answer-area">
+          <button type="button" class="btn btn-accent btn-sm" onclick="abrirEditorRespostaLeitor('${estudoId}')">➕ Add resposta</button>
         </div>
       `;
+    }
+
+    // ==========================================
+    // 3. RENDERIZAÇÃO E NAVEGAÇÃO DE ABAS
+    // ==========================================
+    function renderizarEstudos() {
+      const container = document.getElementById("container-estudos");
+      container.innerHTML = "";
+
+      if (!listaEstudos || listaEstudos.length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:#6b7280; padding:20px;">Nenhum estudo cadastrado.</p>';
+        return;
+      }
+
+      listaEstudos.forEach((s, idx) => {
+        const idCard = `card-${idx}`;
+        const idPauseBtn = `btn-pause-${idx}`;
+        const abaAtual = abaAtivaPorCard[idx] || "ctx";
+        abaAtivaPorCard[idx] = abaAtual;
+
+        const htmlOriginais = Array.isArray(s.originais)
+          ? s.originais.map(o => `
+              <tr><td class="greek-word">${o.word || ""}</td><td><em>${o.trans || ""}</em></td><td>${o.desc || ""}</td></tr>
+            `).join("")
+          : "";
+
+        const htmlContexto = (s.contexto || []).map(c => `<li>${c}</li>`).join("");
+        const htmlTipologia = (s.tipologia || []).map(t => `<li>${t}</li>`).join("");
+        const htmlTeologia = (s.teologia || []).map(t => `<li>${t}</li>`).join("");
+        const htmlRespostaLeitor = gerarHtmlRespostaLeitor(s.id);
+
+        const cardHtml = `
+          <div class="exegesis-card" id="${idCard}">
+            <header class="card-header">
+              <span class="badge">Estudo #${idx + 1}</span>
+              <h1>${s.ref || ""}</h1>
+              <p class="verse-summary">${s.resumo || ""}</p>
+              <div class="tts-bar">
+                <button type="button" class="btn btn-tts" onclick="lerEstudo(${idx})">🔊 Ouvir Estudo</button>
+                <button type="button" class="btn btn-pause" id="${idPauseBtn}" onclick="alternarPausa(${idx})">⏸️ Pausar</button>
+                <button type="button" class="btn btn-stop" onclick="pararLeitura()">⏹️ Parar</button>
+              </div>
+            </header>
+            <nav class="tabs-nav">
+              <button type="button" class="tab-btn ${abaAtual === "ctx" ? "active" : ""}" onclick="mudarAba(event, ${idx}, '${idCard}', 'ctx')">1. Contexto</button>
+              <button type="button" class="tab-btn ${abaAtual === "ori" ? "active" : ""}" onclick="mudarAba(event, ${idx}, '${idCard}', 'ori')">2. Originais</button>
+              <button type="button" class="tab-btn ${abaAtual === "tip" ? "active" : ""}" onclick="mudarAba(event, ${idx}, '${idCard}', 'tip')">3. Conexões</button>
+              <button type="button" class="tab-btn ${abaAtual === "teo" ? "active" : ""}" onclick="mudarAba(event, ${idx}, '${idCard}', 'teo')">4. Teologia</button>
+            </nav>
+            <div id="${idCard}-ctx" class="tab-content ${abaAtual === "ctx" ? "active" : ""}">
+              <h4>Contexto Imediato e Histórico-Cultural</h4>
+              <ul class="study-list">${htmlContexto}</ul>
+            </div>
+            <div id="${idCard}-ori" class="tab-content ${abaAtual === "ori" ? "active" : ""}">
+              <h4>Termos Originais</h4>
+              <div class="table-wrapper">
+                <table>
+                  <thead><tr><th>Termo</th><th>Transliteração</th><th>Análise</th></tr></thead>
+                  <tbody>${htmlOriginais}</tbody>
+                </table>
+              </div>
+            </div>
+            <div id="${idCard}-tip" class="tab-content ${abaAtual === "tip" ? "active" : ""}">
+              <h4>Tipologia e Conexões</h4>
+              <ul class="study-list">${htmlTipologia}</ul>
+            </div>
+            <div id="${idCard}-teo" class="tab-content ${abaAtual === "teo" ? "active" : ""}">
+              <h4>Síntese e Reflexão</h4>
+              <ul class="study-list">${htmlTeologia}</ul>
+              <div class="reflection-box">
+                <strong class="reflection-title">Questão para Aprofundamento:</strong>
+                <div>${s.reflexao || ""}</div>
+                ${htmlRespostaLeitor}
+              </div>
+            </div>
+          </div>
+        `;
+        container.innerHTML += cardHtml;
+      });
+    }
+
+    function mudarAba(event, idx, idCard, abaAlvo) {
+      abaAtivaPorCard[idx] = abaAlvo;
+      const card = document.getElementById(idCard);
+      if (!card) return;
+      card.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+      card.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      const alvo = document.getElementById(`${idCard}-${abaAlvo}`);
+      if (alvo) alvo.classList.add("active");
+      event.currentTarget.classList.add("active");
+    }
+
+    // ==========================================
+    // 4. LEITURA POR VOZ (TTS) E PRONÚNCIA
+    // ==========================================
+    function expandirLivro(prefixo) {
+      const chave = prefixo.replace(/\.+$/, "").trim().toLowerCase();
+      return ABREVIACOES_LIVROS[chave] || prefixo.trim();
+    }
+
+    function formatarListaVersiculos(parteVersiculo) {
+      if (!parteVersiculo) return "";
+      const limpo = parteVersiculo.trim();
+
+      const matchIntervalo = limpo.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
+      if (matchIntervalo) {
+        return `versículos ${matchIntervalo[1]} a ${matchIntervalo[2]}`;
+      }
+
+      if (limpo.includes(",") || /\be\b/i.test(limpo)) {
+        const itens = limpo
+          .split(/\s*,\s*|\s+e\s+/i)
+          .map(item => item.trim())
+          .filter(Boolean);
+        if (itens.length > 1) {
+          const ult = itens.pop();
+          return `versículos ${itens.join(", ")} e ${ult}`;
+        }
+      }
+
+      return `versículo ${limpo}`;
+    }
+
+    function formatarTextoParaVoz(texto) {
+      if (!texto) return "";
+
+      let resultado = texto;
+
+      const substituicoesFoneticas = [
+        { regex: /\bYHWH\b/gi, fala: "Iavé" },
+        { regex: /\bEl Shaddai\b/gi, fala: "El Shadai" },
+        { regex: /\bSiftayim arelim\b/gi, fala: "siftáim arelim" },
+        { regex: /\bavodah kashah\b/gi, fala: "avodá cachá" },
+        { regex: /\bChagag\b/gi, fala: "chagágu" },
+        { regex: /\bSha'ah\b/gi, fala: "chaá" },
+        { regex: /\bRa'a\b/gi, fala: "raá" },
+        { regex: /\bYada\b/gi, fala: "iadá" },
+        { regex: /\bKaved\b/gi, fala: "cavêd" }
+      ];
+
+      for (const item of substituicoesFoneticas) {
+        resultado = resultado.replace(item.regex, item.fala);
+      }
+
+      resultado = resultado.replace(
+        /(^|[\s(;])((?:[123]\s*)?[A-Za-zÀ-ú]{1,6})\.?\s+(\d+)\s*[:.]\s*(\d+(?:\s*[-–—]\s*\d+)?(?:\s*,\s*\d+(?:\s*[-–—]\s*\d+)?)*)/g,
+        (_, prefixoEspaco, livro, cap, versLista) => {
+          const nomeLivro = expandirLivro(livro);
+          const textoVers = formatarListaVersiculos(versLista);
+          return `${prefixoEspaco}${nomeLivro}, capítulo ${cap}, ${textoVers}`;
+        }
+      );
+
+      resultado = resultado.replace(
+        /(^|[\s(;])((?:[123]\s*)?[A-Za-zÀ-ú]{1,4})\.?\s+(\d+)\s*[-–—]\s*(\d+)\b(?!\s*[:.])/g,
+        (match, prefixoEspaco, livro, capIni, capFim) => {
+          const chave = livro.replace(/\.+$/, "").trim().toLowerCase();
+          if (ABREVIACOES_LIVROS[chave]) {
+            return `${prefixoEspaco}${ABREVIACOES_LIVROS[chave]}, capítulos ${capIni} a ${capFim}`;
+          }
+          return match;
+        }
+      );
+
+      resultado = resultado.replace(
+        /(^|[\s(;])((?:[123]\s*)?[A-Za-zÀ-ú]{1,4})\.?\s+(\d+)\b(?!\s*[:.]|\s*[-–—]|\s*(?:capítulo|capítulos|versículo|versículos))/g,
+        (match, prefixoEspaco, livro, cap) => {
+          const chave = livro.replace(/\.+$/, "").trim().toLowerCase();
+          if (ABREVIACOES_LIVROS[chave]) {
+            return `${prefixoEspaco}${ABREVIACOES_LIVROS[chave]}, capítulo ${cap}`;
+          }
+          return match;
+        }
+      );
+
+      resultado = resultado.replace(
+        /\b(vv?)\.\s*(\d+(?:\s*[-–—]\s*\d+)?(?:\s*,\s*\d+(?:\s*[-–—]\s*\d+)?)*)\b/gi,
+        (_, abrev, versLista) => {
+          const textoVers = formatarListaVersiculos(versLista);
+          if (abrev.toLowerCase() === "vv" && textoVers.startsWith("versículo ")) {
+            return textoVers.replace("versículo ", "versículos ");
+          }
+          return textoVers;
+        }
+      );
+
+      resultado = resultado.replace(
+        /\b(\d{1,3})\s*:\s*(\d{1,3})\b/g,
+        (_, num1, num2) => `capítulo ${num1}, versículo ${num2}`
+      );
+
+      return resultado;
+    }
+
+    function resetarBotoesPausa() {
+      document.querySelectorAll('[id^="btn-pause-"]').forEach(btn => {
+        btn.innerHTML = "⏸️ Pausar";
+      });
+    }
+
+    function montarFilaDeFrases(s, abaInicial = "ctx") {
+      const refFormatada = formatarTextoParaVoz(s.ref);
+      const fila = [];
+
+      const blocos = {
+        ctx: () => {
+          fila.push(`Estudo bíblico de ${refFormatada}.`);
+          if (s.resumo) fila.push(`Resumo: ${formatarTextoParaVoz(s.resumo)}`);
+          if (s.contexto && s.contexto.length > 0) {
+            fila.push("Contexto histórico:");
+            s.contexto.forEach(c => fila.push(formatarTextoParaVoz(c)));
+          }
+        },
+        ori: () => {
+          const originaisArr = s.originais || [];
+          if (originaisArr.length > 0) {
+            fila.push("Termos originais:");
+            originaisArr.forEach(o => {
+              fila.push(`Termo ${o.word}, transliteração ${o.trans}, significado: ${formatarTextoParaVoz(o.desc)}`);
+            });
+          }
+        },
+        tip: () => {
+          const tipologiaArr = s.tipologia || [];
+          if (tipologiaArr.length > 0) {
+            fila.push("Conexões e tipologia:");
+            tipologiaArr.forEach(t => fila.push(formatarTextoParaVoz(t)));
+          }
+        },
+        teo: () => {
+          const teologiaArr = s.teologia || [];
+          if (teologiaArr.length > 0) {
+            fila.push("Síntese teológica:");
+            teologiaArr.forEach(t => fila.push(formatarTextoParaVoz(t)));
+          }
+          if (s.reflexao) {
+            fila.push(`Questão para aprofundamento: ${formatarTextoParaVoz(s.reflexao)}`);
+          }
+        }
+      };
+
+      const ordemAbas = ["ctx", "ori", "tip", "teo"];
+      const inicioIdx = Math.max(0, ordemAbas.indexOf(abaInicial));
+
+      for (let i = inicioIdx; i < ordemAbas.length; i++) {
+        const chaveAba = ordemAbas[i];
+        if (blocos[chaveAba]) blocos[chaveAba]();
+      }
+
+      return fila;
+    }
+
+    function falarProximaFrase() {
+      if (estadoTTS.pausado || !estadoTTS.lendo) return;
+
+      if (estadoTTS.fraseAtual >= estadoTTS.frases.length) {
+        pararLeitura();
+        return;
+      }
+
+      const texto = estadoTTS.frases[estadoTTS.fraseAtual];
+      const utterance = new SpeechSynthesisUtterance(texto);
+      utterance.lang = "pt-BR";
+      utterance.rate = 1.0;
+
+      utterance.onend = () => {
+        if (!estadoTTS.pausado && estadoTTS.lendo) {
+          estadoTTS.fraseAtual++;
+          falarProximaFrase();
+        }
+      };
+
+      utterance.onerror = () => {
+        if (!estadoTTS.pausado && estadoTTS.lendo) {
+          estadoTTS.fraseAtual++;
+          falarProximaFrase();
+        }
+      };
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function lerEstudo(idx) {
+      try {
+        if (!("speechSynthesis" in window)) {
+          alert("Seu navegador não suporta leitura de voz.");
+          return;
+        }
+
+        window.speechSynthesis.cancel();
+        resetarBotoesPausa();
+
+        const s = listaEstudos[idx];
+        const abaAtual = abaAtivaPorCard[idx] || "ctx";
+
+        estadoTTS = {
+          estudoIdx: idx,
+          frases: montarFilaDeFrases(s, abaAtual),
+          fraseAtual: 0,
+          pausado: false,
+          lendo: true
+        };
+
+        falarProximaFrase();
+      } catch (e) {
+        alert("Erro ao iniciar a leitura por voz.");
+      }
+    }
+
+    function alternarPausa(idx) {
+      try {
+        if (!("speechSynthesis" in window)) return;
+        if (estadoTTS.estudoIdx !== idx || !estadoTTS.lendo) return;
+
+        const btn = document.getElementById(`btn-pause-${idx}`);
+
+        if (!estadoTTS.pausado) {
+          estadoTTS.pausado = true;
+          window.speechSynthesis.cancel();
+          if (btn) btn.innerHTML = "▶️ Continuar";
+        } else {
+          estadoTTS.pausado = false;
+          if (btn) btn.innerHTML = "⏸️ Pausar";
+          falarProximaFrase();
+        }
+      } catch (e) {}
+    }
+
+    function pararLeitura() {
+      estadoTTS = {
+        estudoIdx: null,
+        frases: [],
+        fraseAtual: 0,
+        pausado: false,
+        lendo: false
+      };
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+      resetarBotoesPausa();
+    }
+
+    // ==========================================
+    // 5. ACESSO RESTRITO FIREBASE AUTH E CRUD
+    // ==========================================
+    function isAdminAutenticado() {
+      return Boolean(window.usuarioAdminAtual);
+    }
+
+    function abrirModal(id) {
+      document.getElementById(id).classList.add("active");
+    }
+
+    function fecharModal(id) {
+      document.getElementById(id).classList.remove("active");
+    }
+
+    async function fazerLoginAdmin() {
+      const emailEl = document.getElementById("emailAdmin");
+      const senhaEl = document.getElementById("senhaAdmin");
+      const erroEl = document.getElementById("msgErroLogin");
+      const btnEntrar = document.getElementById("btnEntrarAdmin");
+
+      const email = emailEl.value.trim();
+      const senha = senhaEl.value;
+
+      erroEl.style.display = "none";
+      erroEl.textContent = "";
+
+      if (!email || !senha) {
+        erroEl.textContent = "Informe o e-mail e a senha.";
+        erroEl.style.display = "block";
+        return;
+      }
+
+      if (!window.firebaseServices) {
+        erroEl.textContent = "Aguarde o carregamento do Firebase e tente novamente.";
+        erroEl.style.display = "block";
+        return;
+      }
+
+      btnEntrar.disabled = true;
+      btnEntrar.textContent = "Entrando...";
+
+      try {
+        await window.firebaseServices.loginEmailSenha(email, senha);
+        senhaEl.value = "";
+        fecharModal("loginModal");
+        abrirPainelAdmin();
+      } catch (err) {
+        let msg = "E-mail ou senha inválidos.";
+        if (err.code === "auth/too-many-requests") {
+          msg = "Muitas tentativas. Aguarde alguns instantes e tente novamente.";
+        } else if (err.code === "auth/network-request-failed") {
+          msg = "Falha de conexão com a internet.";
+        }
+        erroEl.textContent = msg;
+        erroEl.style.display = "block";
+      } finally {
+        btnEntrar.disabled = false;
+        btnEntrar.textContent = "Entrar";
+      }
+    }
+
+    async function sairAdmin() {
+      if (window.firebaseServices) {
+        await window.firebaseServices.logoutAdmin();
+      }
+      fecharModal("editorModal");
+      fecharModal("adminModal");
+    }
+
+    function preencherListaAdmin() {
+      const lista = document.getElementById("lista-admin");
+      lista.innerHTML = "";
+
+      listaEstudos.forEach((s, idx) => {
+        lista.innerHTML += `
+          <div class="admin-item">
+            <span><strong>${s.ref}</strong> - ${(s.resumo || "").substring(0, 30)}...</span>
+            <div style="display:flex; gap:6px;">
+              <button type="button" class="btn" style="padding:4px 10px; font-size:0.8rem;" onclick="abrirEditor(${idx})">Editar</button>
+              <button type="button" class="btn btn-danger" style="padding:4px 10px; font-size:0.8rem;" onclick="excluirEstudo(${idx})">Excluir</button>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    function abrirPainelAdmin() {
+      if (!isAdminAutenticado()) {
+        document.getElementById("msgErroLogin").style.display = "none";
+        abrirModal("loginModal");
+        return;
+      }
+      const labelUser = document.getElementById("adminEmailLogado");
+      if (labelUser && window.usuarioAdminAtual) {
+        labelUser.textContent = `👤 ${window.usuarioAdminAtual.email}`;
+      }
+      preencherListaAdmin();
+      abrirModal("adminModal");
+    }
+
+    function abrirEditor(idx) {
+      if (!isAdminAutenticado()) {
+        abrirModal("loginModal");
+        return;
+      }
+
+      fecharModal("adminModal");
+      document.getElementById("indiceEdicao").value = idx;
+
+      if (idx === -1) {
+        document.getElementById("tituloEditor").innerText = "Novo Estudo";
+        document.getElementById("inpRef").value = "";
+        document.getElementById("inpResumo").value = "";
+        document.getElementById("inpContexto").value = "";
+        document.getElementById("inpOriginais").value = "";
+        document.getElementById("inpTipologia").value = "";
+        document.getElementById("inpTeologia").value = "";
+        document.getElementById("inpReflexao").value = "";
+      } else {
+        document.getElementById("tituloEditor").innerText = "Editar Estudo";
+        const s = listaEstudos[idx];
+        document.getElementById("inpRef").value = s.ref || "";
+        document.getElementById("inpResumo").value = s.resumo || "";
+        document.getElementById("inpContexto").value = (s.contexto || []).join("\n");
+
+        const textoOrig = (s.originais || [])
+          .map(o => `${o.word || ""} | ${o.trans || ""} | ${o.desc || ""}`)
+          .join("\n");
+        document.getElementById("inpOriginais").value = textoOrig;
+
+        document.getElementById("inpTipologia").value = (s.tipologia || []).join("\n");
+        document.getElementById("inpTeologia").value = (s.teologia || []).join("\n");
+        document.getElementById("inpReflexao").value = s.reflexao || "";
+      }
+      abrirModal("editorModal");
+    }
+
+    async function salvarEstudo() {
+      if (!isAdminAutenticado()) {
+        abrirModal("loginModal");
+        return;
+      }
+
+      const idx = parseInt(document.getElementById("indiceEdicao").value, 10);
+      const ref = document.getElementById("inpRef").value.trim();
+      const resumo = document.getElementById("inpResumo").value.trim();
+
+      if (!ref) {
+        alert("Informe a referência bíblica!");
+        return;
+      }
+
+      const btnSalvar = document.getElementById("btnSalvarEstudo");
+      btnSalvar.disabled = true;
+      btnSalvar.textContent = "Salvando...";
+
+      try {
+        const contexto = document.getElementById("inpContexto").value.split("\n").map(l => l.trim()).filter(Boolean);
+        const tipologia = document.getElementById("inpTipologia").value.split("\n").map(l => l.trim()).filter(Boolean);
+        const teologia = document.getElementById("inpTeologia").value.split("\n").map(l => l.trim()).filter(Boolean);
+        const reflexao = document.getElementById("inpReflexao").value.trim();
+
+        const linhasOrig = document.getElementById("inpOriginais").value.split("\n").map(l => l.trim()).filter(Boolean);
+        const originais = linhasOrig.map(l => {
+          const p = l.split("|").map(x => x.trim());
+          return { word: p[0] || "", trans: p[1] || "", desc: p[2] || "" };
+        });
+
+        const estudoExistente = idx >= 0 ? listaEstudos[idx] : null;
+        const estudoSalvo = {
+          id: estudoExistente?.id || `estudo-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          ordem: estudoExistente?.ordem ?? (listaEstudos.length + 1),
+          ref,
+          resumo,
+          contexto,
+          originais,
+          tipologia,
+          teologia,
+          reflexao
+        };
+
+        if (idx === -1) {
+          listaEstudos.push(estudoSalvo);
+        } else {
+          listaEstudos[idx] = estudoSalvo;
+        }
+
+        const ok = await window.salvarDados(estudoSalvo, null);
+        if (ok) {
+          fecharModal("editorModal");
+          abrirPainelAdmin();
+        }
+      } finally {
+        btnSalvar.disabled = false;
+        btnSalvar.textContent = "Salvar Estudo";
+      }
+    }
+
+    async function excluirEstudo(idx) {
+      if (!isAdminAutenticado()) {
+        abrirModal("loginModal");
+        return;
+      }
+
+      if (confirm("Deseja realmente excluir este estudo?")) {
+        const removido = listaEstudos[idx];
+        listaEstudos.splice(idx, 1);
+        listaEstudos.forEach((item, i) => { item.ordem = i + 1; });
+        const ok = await window.salvarDados(null, removido?.id || null);
+        if (ok) {
+          abrirPainelAdmin();
+        }
+      }
+    }
+
+    // ==========================================
+    // 6. INICIALIZAÇÃO LOCAL IMEDIATA
+    // ==========================================
+    window.addEventListener("DOMContentLoaded", () => {
+      carregarCacheLocal();
+      renderizarEstudos();
     });
-    abrirModal("adminModal");
-  }
+  </script>
 
-  function abrirEditor(idx) {
-    if (!isAdminAutenticado()) {
-      abrirModal("loginModal");
-      return;
-    }
+  <!-- ==========================================
+       7. INTEGRAÇÃO CLOUD FIRESTORE + AUTH (CDN)
+       ========================================== -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      doc,
+      setDoc,
+      deleteDoc,
+      onSnapshot,
+      getDocs
+    } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
+    import {
+      getAuth,
+      signInWithEmailAndPassword,
+      signOut,
+      onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
 
-    fecharModal("adminModal");
-    document.getElementById("indiceEdicao").value = idx;
+    const firebaseConfig = {
+      apiKey: "AIzaSyCMMSr2ScV4XmQmLZjtGFg4pla-siHBDXE",
+      authDomain: "bloco-de-estudos.firebaseapp.com",
+      projectId: "bloco-de-estudos",
+      storageBucket: "bloco-de-estudos.firebasestorage.app",
+      messagingSenderId: "1064241756020",
+      appId: "1:1064241756020:web:dbbcac918adb8bae0c9e21",
+      measurementId: "G-RMGL1R63JS"
+    };
 
-    if (idx === -1) {
-      document.getElementById("tituloEditor").innerText = "Novo Estudo";
-      document.getElementById("inpRef").value = "";
-      document.getElementById("inpResumo").value = "";
-      document.getElementById("inpContexto").value = "";
-      document.getElementById("inpOriginais").value = "";
-      document.getElementById("inpTipologia").value = "";
-      document.getElementById("inpTeologia").value = "";
-      document.getElementById("inpReflexao").value = "";
-    } else {
-      document.getElementById("tituloEditor").innerText = "Editar Estudo";
-      const s = listaEstudos[idx];
-      document.getElementById("inpRef").value = s.ref || "";
-      document.getElementById("inpResumo").value = s.resumo || "";
-      document.getElementById("inpContexto").value = (s.contexto || []).join("\n");
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    const colEstudos = collection(db, "estudos");
 
-      const textoOrig = (s.originais || [])
-        .map(o => `${o.word || ""} | ${o.trans || ""} | ${o.desc || ""}`)
-        .join("\n");
-      document.getElementById("inpOriginais").value = textoOrig;
-
-      document.getElementById("inpTipologia").value = (s.tipologia || []).join("\n");
-      document.getElementById("inpTeologia").value = (s.teologia || []).join("\n");
-      document.getElementById("inpReflexao").value = s.reflexao || "";
-    }
-    abrirModal("editorModal");
-  }
-
-  function salvarEstudo() {
-    if (!isAdminAutenticado()) {
-      abrirModal("loginModal");
-      return;
-    }
-
-    const idx = parseInt(document.getElementById("indiceEdicao").value, 10);
-    const ref = document.getElementById("inpRef").value.trim();
-    const resumo = document.getElementById("inpResumo").value.trim();
-
-    if (!ref) {
-      alert("Informe a referência bíblica!");
-      return;
-    }
-
-    const contexto = document.getElementById("inpContexto").value.split("\n").map(l => l.trim()).filter(Boolean);
-    const tipologia = document.getElementById("inpTipologia").value.split("\n").map(l => l.trim()).filter(Boolean);
-    const teologia = document.getElementById("inpTeologia").value.split("\n").map(l => l.trim()).filter(Boolean);
-    const reflexao = document.getElementById("inpReflexao").value.trim();
-
-    const linhasOrig = document.getElementById("inpOriginais").value.split("\n").map(l => l.trim()).filter(Boolean);
-    const originais = linhasOrig.map(l => {
-      const p = l.split("|").map(x => x.trim());
-      return { word: p[0] || "", trans: p[1] || "", desc: p[2] || "" };
+    onAuthStateChanged(auth, (user) => {
+      window.usuarioAdminAtual = user || null;
+      const labelUser = document.getElementById("adminEmailLogado");
+      if (labelUser && user) {
+        labelUser.textContent = `👤 ${user.email}`;
+      }
     });
 
-    const novoEstudo = { ref, resumo, contexto, originais, tipologia, teologia, reflexao };
-
-    if (idx === -1) {
-      listaEstudos.push(novoEstudo);
-    } else {
-      listaEstudos[idx] = novoEstudo;
+    async function loginEmailSenha(email, senha) {
+      const credencial = await signInWithEmailAndPassword(auth, email, senha);
+      window.usuarioAdminAtual = credencial.user;
+      return credencial.user;
     }
 
-    salvarDados();
-    fecharModal("editorModal");
-    abrirPainelAdmin();
-  }
-
-  function excluirEstudo(idx) {
-    if (!isAdminAutenticado()) {
-      abrirModal("loginModal");
-      return;
+    async function logoutAdmin() {
+      await signOut(auth);
+      window.usuarioAdminAtual = null;
     }
 
-    if (confirm("Deseja realmente excluir este estudo?")) {
-      listaEstudos.splice(idx, 1);
-      salvarDados();
-      abrirPainelAdmin();
+    async function salvarEstudoNuvem(estudo) {
+      const { id, ...dados } = estudo;
+      await setDoc(doc(db, "estudos", id), dados);
     }
-  }
 
-  // ==========================================
-  // 5. INICIALIZAÇÃO
-  // ==========================================
-  window.addEventListener("DOMContentLoaded", () => {
-    carregarDadosIniciais();
-    renderizarEstudos();
-  });
-</script>
+    async function excluirEstudoNuvem(id) {
+      if (!id) return;
+      await deleteDoc(doc(db, "estudos", id));
+    }
+
+    async function sincronizarListaCompleta(estudosArr) {
+      const snapshotAtual = await getDocs(colEstudos);
+      const idsNoBanco = new Set(snapshotAtual.docs.map(d => d.id));
+      const idsNovos = new Set(estudosArr.map(e => e.id));
+
+      const operacoes = [];
+      for (const estudo of estudosArr) {
+        operacoes.push(salvarEstudoNuvem(estudo));
+      }
+      for (const idAntigo of idsNoBanco) {
+        if (!idsNovos.has(idAntigo)) {
+          operacoes.push(excluirEstudoNuvem(idAntigo));
+        }
+      }
+      await Promise.all(operacoes);
+    }
+
+    window.firebaseServices = {
+      loginEmailSenha,
+      logoutAdmin,
+      salvarEstudoNuvem,
+      excluirEstudoNuvem,
+      sincronizarListaCompleta
+    };
+
+    onSnapshot(
+      colEstudos,
+      (snapshot) => {
+        const documentos = snapshot.docs.map((d, idx) => ({
+          id: d.id,
+          ordem: typeof d.data().ordem === "number" ? d.data().ordem : (idx + 1),
+          ...d.data()
+        }));
+
+        documentos.sort((a, b) => a.ordem - b.ordem);
+        window.aplicarEstudosDaNuvem(documentos);
+      },
+      (error) => {
+        console.error("Erro no Firestore:", error);
+        atualizarStatus("⚠️ Erro de conexão com o Firestore");
+      }
+    );
+  </script>
 
 </body>
 </html>
